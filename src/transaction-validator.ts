@@ -19,9 +19,106 @@ export class TransactionValidator {
   validateTransaction(transaction: Transaction): ValidationResult {
     const errors: ValidationError[] = [];
 
-    // STUDENT ASSIGNMENT: Implement the validation logic above
-    // Remove this line and implement the actual validation
-    throw new Error('Transaction validation not implemented - this is your assignment!');
+    if (!transaction.inputs || transaction.inputs.length === 0) {
+      errors.push(
+        createValidationError(
+          VALIDATION_ERRORS.EMPTY_INPUTS,
+          "Transaccion no tiene entrada"
+        )
+      );
+    }
+
+    if (!transaction.outputs || transaction.outputs.length === 0) {
+      errors.push(
+        createValidationError(
+          VALIDATION_ERRORS.EMPTY_OUTPUTS,
+          "Transaccion no tiene salida"
+        )
+      );
+    }
+
+    for (const output of transaction.outputs) {
+      if (output.amount < 0) {
+        errors.push(
+          createValidationError(
+            VALIDATION_ERRORS.NEGATIVE_AMOUNT,
+            "La salida de la transaccion es negativa"
+          )
+        );
+      }
+      if (output.amount === 0) {
+        errors.push(
+          createValidationError(
+            VALIDATION_ERRORS.NEGATIVE_AMOUNT,
+            "La salida de la transaccion es cero"
+          )
+        );
+      }
+    }
+
+    if (errors.length > 0) {
+      return { valid: false, errors };
+    }
+
+    const seen = new Set<string>();
+    let inputTotal = 0;
+
+    for (const input of transaction.inputs) {
+      const key = `${input.utxoId.txId}:${input.utxoId.outputIndex}`;
+
+      if (seen.has(key)) {
+        errors.push(
+          createValidationError(
+            VALIDATION_ERRORS.DOUBLE_SPENDING,
+            `UTXO ${key} esta referenciado más de una vez`
+          )
+        );
+        continue;
+      }
+      seen.add(key);
+
+      const utxo = this.utxoPool.getUTXO(input.utxoId.txId, input.utxoId.outputIndex);
+
+      if (!utxo) {
+        errors.push(
+          createValidationError(
+            VALIDATION_ERRORS.UTXO_NOT_FOUND,
+            `UTXO no encontrado para ${input.utxoId.txId}:${input.utxoId.outputIndex}`
+          )
+        );
+      } else {
+        inputTotal += utxo.amount;
+      }
+    }
+
+    const outputTotal = transaction.outputs.reduce((sum, o) => sum + o.amount, 0);
+    if (inputTotal !== outputTotal) {
+      errors.push(
+        createValidationError(
+          VALIDATION_ERRORS.AMOUNT_MISMATCH,
+          `Input total ${inputTotal} no es igua al output total ${outputTotal}`
+        )
+      );
+    }
+
+    const transactionData = this.createTransactionDataForSigning_(transaction);
+
+    for (const input of transaction.inputs) {
+      const utxo = this.utxoPool.getUTXO(input.utxoId.txId, input.utxoId.outputIndex);
+
+      if (utxo) {
+        const isValid = verify(transactionData, input.signature, utxo.recipient);
+
+        if (!isValid) {
+          errors.push(
+            createValidationError(
+              VALIDATION_ERRORS.INVALID_SIGNATURE,
+              `Firma invalida para utxo ${input.utxoId.txId}:${input.utxoId.outputIndex}`
+            )
+          );
+        }
+      }
+    }
 
     return {
       valid: errors.length === 0,
