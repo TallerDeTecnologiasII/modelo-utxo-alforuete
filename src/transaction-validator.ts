@@ -23,7 +23,7 @@ export class TransactionValidator {
       errors.push(
         createValidationError(
           VALIDATION_ERRORS.EMPTY_INPUTS,
-          "Transaccion no tiene entrada"
+          "La transaccion no tiene entrada"
         )
       );
     }
@@ -32,7 +32,7 @@ export class TransactionValidator {
       errors.push(
         createValidationError(
           VALIDATION_ERRORS.EMPTY_OUTPUTS,
-          "Transaccion no tiene salida"
+          "La transaccion no tiene salida"
         )
       );
     }
